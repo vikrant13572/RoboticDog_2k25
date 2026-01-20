@@ -1,0 +1,34 @@
+s(t) = a0 + a1*t + a2*t^2 + a3*t^3
+
+# At start position
+s(0) = 0   =>   a0 = 0
+
+# At start velocity
+s'(t) = a1 + 2*a2*t + 3*a3*t^2
+s'(0) = 0   =>   a1 = 0
+
+# Therefore
+s(t) = a2*t^2 + a3*t^3
+
+# At end position
+s(tf) = 1
+s(tf) = a2*tf^2 + a3*tf^3
+
+# At end velocity
+s'(tf) = 0
+s'(tf) = 2*a2*tf + 3*a3*tf^2
+
+2*a2*tf + 3*a3*tf^2 = 0
+a2 = -(3*a3*tf)/2
+
+a3 = -2/tf^3
+a2 =  3/tf^2
+
+s(t) = 3/tf^2 * t^2  -  2/tf^3 * t^3
+θ(0) = 0
+θ(tf) = π
+
+θ(t) = π * s(t)
+
+z=zc+Rcos(0)=zc+Rcos( π * s(t))
+y=yc+Rsin(0)=yc+Rsin( π * s(t))
