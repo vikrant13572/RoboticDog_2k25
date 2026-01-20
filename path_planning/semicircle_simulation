@@ -1,0 +1,174 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import math
+
+def c(theta): return np.cos(np.radians(theta))
+def s(theta): return np.sin(np.radians(theta))
+
+a1, a2, a3 = 5.0, 4.0, 3.0
+
+def compute_positions(theta1, theta2, theta3):
+    H1 = np.array([
+        [-s(theta1), 0,  c(theta1), a1*c(theta1)],
+        [ c(theta1), 0,  s(theta1), a1*s(theta1)],
+        [0,           1, 0,          0],
+        [0,           0, 0,          1]
+    ])
+
+    H2 = np.array([
+        [ c(theta2), -s(theta2), 0, a2*c(theta2)],
+        [ s(theta2),  c(theta2), 0, a2*s(theta2)],
+        [0,            0,        1, 0],
+        [0,            0,        0, 1]
+    ])
+
+    H3 = np.array([
+        [ c(theta3), -s(theta3), 0, a3*c(theta3)],
+        [ s(theta3),  c(theta3), 0, a3*s(theta3)],
+        [0,            0,        1, 0],
+        [0,            0,        0, 1]
+    ])
+
+    T1 = H1
+    T2 = H1 @ H2
+    T3 = T2 @ H3
+
+    O0 = np.array([0, 0, 0])
+    O1 = T1[:3, 3]
+    O2 = T2[:3, 3]
+    O3 = T3[:3, 3]
+
+    return np.array([O0, O1, O2, O3])
+
+def clamp(x, lo=-1.0, hi=1.0):
+    return max(lo, min(hi, x))
+
+def ik_xyz(x, y, z, degrees=True):
+    sols = []
+    r = math.hypot(x, y)
+    if r < abs(a1) - 1e-9:
+        return sols
+
+    phi = math.atan2(y, x)
+    cos_alpha = clamp(a1 / r)
+    alpha = math.acos(cos_alpha)
+
+    for alpha_val in [alpha, -alpha]:
+        t1 = phi - alpha_val
+        Xp = r * math.sin(alpha_val)
+        Zp = z
+
+        dist2 = Xp**2 + Zp**2
+        D = clamp((dist2 - a2**2 - a3**2) / (2 * a2 * a3))
+
+        for sgn in [+1.0, -1.0]:
+            sin_t3 = sgn * math.sqrt(max(0.0, 1.0 - D**2))
+            t3 = math.atan2(sin_t3, D)
+
+            num = a3 * math.sin(t3)
+            den = a2 + a3 * math.cos(t3)
+            t2 = math.atan2(Zp, Xp) - math.atan2(num, den)
+
+            if degrees:
+                sols.append((math.degrees(t1), math.degrees(t2), math.degrees(t3)))
+            else:
+                sols.append((t1, t2, t3))
+    return sols
+
+xc = 5
+yc = float(input("Enter yc (center y): "))
+zc = float(input("Enter zc (center z): "))
+R  = float(input("Enter radius R: "))
+T  = float(input("Enter total time T: "))
+
+steps = 50
+dt = T / steps
+
+theta1_list, theta2_list, theta3_list = [], [], []
+
+for i in range(steps + 1):
+    t = i * dt
+    tau = t / T
+
+    s_t = 3*tau**2 - 2*tau**3
+    theta = math.pi * s_t   
+
+    x = xc
+    y = yc - R * math.sin(theta)
+    z = zc - R * math.cos(theta)
+
+    sols = ik_xyz(x, y, z)
+    if not sols:
+        continue
+
+    t1, t2, t3 = sols[0]
+    theta1_list.append(t1)
+    theta2_list.append(t2)
+    theta3_list.append(t3)
+
+fig = plt.figure(figsize=(10, 8))
+ax = fig.add_subplot(111, projection='3d')
+ax.set_title("Quadruped Leg  Semicircular Foot Trajectory")
+ax.view_init(elev=90, azim=-90)
+
+reach = a1 + a2 + a3
+ax.set_xlim([-reach, reach])
+ax.set_ylim([-reach, reach])
+ax.set_zlim([-reach/2, reach])
+
+ax.set_xlabel("X")
+ax.set_ylabel("Y")
+ax.set_zlabel("Z")
+
+pos = compute_positions(theta1_list[0], theta2_list[0], theta3_list[0])
+(line,) = ax.plot(pos[:,0], pos[:,1], pos[:,2], '-o', lw=3)
+
+eff_text = ax.text2D(0.05, 0.95, "", transform=ax.transAxes)
+
+ee_x, ee_y, ee_z = [], [], []
+
+(traj_line,) = ax.plot([], [], [], 'r--', lw=2, label="End-Effector Path")
+ax.legend()
+
+plt.ion()
+plt.show()
+
+try:
+ while True:
+
+    for k in range(len(theta1_list)):
+        if not plt.fignum_exists(fig.number):
+            raise KeyboardInterrupt
+
+        pos = compute_positions(theta1_list[k],
+                                theta2_list[k],
+                                theta3_list[k])
+
+        line.set_data(pos[:,0], pos[:,1])
+        line.set_3d_properties(pos[:,2])
+
+        ee_x.append(pos[-1, 0])
+        ee_y.append(pos[-1, 1])
+        ee_z.append(pos[-1, 2])
+
+        traj_line.set_data(ee_x, ee_y)
+        traj_line.set_3d_properties(ee_z)
+
+        eff_text.set_text(
+            f"End Effector: X={pos[-1,0]:.2f}, "
+            f"Y={pos[-1,1]:.2f}, "
+            f"Z={pos[-1,2]:.2f}")
+        plt.pause(0.02)   
+
+    plt.pause(2.0)   
+
+    ee_x.clear()
+    ee_y.clear()
+    ee_z.clear()
+    traj_line.set_data([], [])
+    traj_line.set_3d_properties([])
+
+except KeyboardInterrupt:
+    plt.close()
+    print("Simulation closed.")
+
